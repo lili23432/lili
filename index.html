@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>贪吃蛇小游戏</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: "Microsoft YaHei", system-ui, sans-serif;
+      background: radial-gradient(circle at top, #1f2937 0%, #0f172a 60%);
+      color: #e5e7eb;
+    }
+    .container {
+      width: min(92vw, 520px);
+      background: rgba(17, 24, 39, 0.88);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+    .score {
+      font-weight: 700;
+      color: #22c55e;
+    }
+    canvas {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: block;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 10px;
+    }
+    .hint {
+      margin-top: 10px;
+      opacity: 0.85;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    kbd {
+      background: #334155;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 13px;
+      border: 1px solid #475569;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span>🐍 贪吃蛇</span>
+      <span class="score">得分：<span id="score">0</span></span>
+    </div>
+    <canvas id="game" width="420" height="420"></canvas>
+    <div class="hint">
+      使用 <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> 或 <kbd>WASD</kbd> 控制方向。<br />
+      按 <kbd>R</kbd> 重新开始。
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+
+    const gridSize = 20;
+    const tileCount = canvas.width / gridSize;
+    let snake;
+    let direction;
+    let nextDirection;
+    let food;
+    let score;
+    let gameOver;
+
+    function resetGame() {
+      snake = [{ x: 10, y: 10 }];
+      direction = { x: 1, y: 0 };
+      nextDirection = { ...direction };
+      food = spawnFood();
+      score = 0;
+      gameOver = false;
+      scoreEl.textContent = score;
+    }
+
+    function spawnFood() {
+      let candidate;
+      do {
+        candidate = {
+          x: Math.floor(Math.random() * tileCount),
+          y: Math.floor(Math.random() * tileCount),
+        };
+      } while (snake && snake.some((part) => part.x === candidate.x && part.y === candidate.y));
+      return candidate;
+    }
+
+    function drawCell(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * gridSize + 1, y * gridSize + 1, gridSize - 2, gridSize - 2);
+    }
+
+    function drawBoard() {
+      ctx.fillStyle = '#0b1220';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawCell(food.x, food.y, '#ef4444');
+
+      snake.forEach((part, index) => {
+        drawCell(part.x, part.y, index === 0 ? '#22c55e' : '#16a34a');
+      });
+
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('游戏结束', canvas.width / 2, canvas.height / 2 - 8);
+        ctx.font = '16px sans-serif';
+        ctx.fillText('按 R 重新开始', canvas.width / 2, canvas.height / 2 + 24);
+      }
+    }
+
+    function moveSnake() {
+      if (gameOver) return;
+
+      direction = nextDirection;
+      const head = {
+        x: snake[0].x + direction.x,
+        y: snake[0].y + direction.y,
+      };
+
+      const hitWall = head.x < 0 || head.y < 0 || head.x >= tileCount || head.y >= tileCount;
+      const hitSelf = snake.some((part) => part.x === head.x && part.y === head.y);
+
+      if (hitWall || hitSelf) {
+        gameOver = true;
+        drawBoard();
+        return;
+      }
+
+      snake.unshift(head);
+
+      if (head.x === food.x && head.y === food.y) {
+        score += 1;
+        scoreEl.textContent = score;
+        food = spawnFood();
+      } else {
+        snake.pop();
+      }
+
+      drawBoard();
+    }
+
+    document.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+      const map = {
+        arrowup: { x: 0, y: -1 },
+        w: { x: 0, y: -1 },
+        arrowdown: { x: 0, y: 1 },
+        s: { x: 0, y: 1 },
+        arrowleft: { x: -1, y: 0 },
+        a: { x: -1, y: 0 },
+        arrowright: { x: 1, y: 0 },
+        d: { x: 1, y: 0 },
+      };
+
+      if (key === 'r') {
+        resetGame();
+        drawBoard();
+        return;
+      }
+
+      const chosen = map[key];
+      if (!chosen) return;
+
+      const reversing = chosen.x + direction.x === 0 && chosen.y + direction.y === 0;
+      if (!reversing) {
+        nextDirection = chosen;
+      }
+    });
+
+    resetGame();
+    drawBoard();
+    setInterval(moveSnake, 120);
+  </script>
+</body>
+</html>
